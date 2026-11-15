@@ -13,7 +13,7 @@ app = FastAPI()
 os.makedirs("static", exist_ok=True)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
+BOT_TOKEN = os.getenv("9187781523:AAGlo3rrSECl8wurPG_XmxTO-GepWZnLuqc")
 WEBAPP_URL = os.getenv("WEBAPP_URL", "")
 
 bot = Bot(token=BOT_TOKEN) if BOT_TOKEN else None
