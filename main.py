@@ -21,6 +21,9 @@ WEBAPP_URL = os.getenv("web-production-c02fbcbb.up.railway.app")
 bot = Bot(token=BOT_TOKEN) if BOT_TOKEN else None
 dp = Dispatcher()
 
+# Временное хранилище инвентаря (в реале нужно использовать БД)
+user_inventory = {}
+
 @dp.message(Command("start"))
 async def cmd_start(message: Message):
     if WEBAPP_URL:
@@ -31,7 +34,6 @@ async def cmd_start(message: Message):
     else:
         await message.answer("Привет! URL Mini App не настроен.")
 
-# ОБРАБОТКА ДАННЫХ ИЗ MINI APP (Покупка за звезды)
 @dp.message(F.web_app_data)
 async def web_app_data_handler(message: Message):
     try:
@@ -40,30 +42,42 @@ async def web_app_data_handler(message: Message):
             item = data.get("item")
             price = int(data.get("price"))
             
-            # Выставляем счет в Telegram Stars (валюта XTR)
             await bot.send_invoice(
                 chat_id=message.chat.id,
                 title=f"Покупка: {item}",
-                description=f"Аксессуар {item} для вашего питомца.",
+                description=f"Аксессуар/Услуга {item}.",
                 payload=f"item_{item}",
-                provider_token="",  # Для Stars оставляем пустым!
-                currency="XTR",     # Валюта Telegram Stars
+                provider_token="",
+                currency="XTR",
                 prices=[LabeledPrice(label=item, amount=price)]
             )
     except Exception as e:
-        print(f"Ошибка при чтении данных: {e}")
+        print(f"Ошибка данных: {e}")
 
-# ПОДТВЕРЖДЕНИЕ ОПЛАТЫ
 @dp.pre_checkout_query()
 async def process_pre_checkout_query(pre_checkout_query: PreCheckoutQuery):
     await bot.answer_pre_checkout_query(pre_checkout_query.id, ok=True)
 
-# УСПЕШНАЯ ОПЛАТА (Выдаем товар)
 @dp.message(F.successful_payment)
 async def process_successful_payment(message: Message):
     payload = message.successful_payment.invoice_payload
     item = payload.replace("item_", "")
-    await message.answer(f"🎉 Успешно куплено: {item}! Аксессуар добавлен питомцу (в разработке).")
+    
+    # Сохраняем в инвентарь пользователя
+    user_id = message.from_user.id
+    if user_id not in user_inventory:
+        user_inventory[user_id] = []
+    user_inventory[user_id].append(item)
+
+    # Отправляем уведомление с кнопкой заново открыть Mini App
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✨ Посмотреть обновление", web_app=WebAppInfo(url=WEBAPP_URL))]
+    ])
+    
+    await message.answer(
+        f"🎉 Успешно куплено: {item}!\nТеперь ваш питомец может это примерить!", 
+        reply_markup=kb
+    )
 
 @app.get("/", response_class=HTMLResponse)
 async def index():
